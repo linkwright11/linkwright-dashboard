@@ -102,7 +102,7 @@ export default function Login() {
 
         {/* Footer */}
         <p className="text-center text-zinc-500 text-sm mt-6">
-          LinkWright © 2025 · Troy Wright
+          LinkWright © 2026 · Troy Wright
         </p>
       </div>
     </div>
