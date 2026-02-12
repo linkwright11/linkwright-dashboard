@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
 
 type Message = {
   id: string
@@ -20,6 +21,11 @@ type Conversation = {
   messages?: Message[]
 }
 
+type ChartData = {
+  date: string
+  calls: number
+}
+
 export default function Dashboard() {
   const [conversations, setConversations] = useState<Conversation[]>([])
   const [filteredConversations, setFilteredConversations] = useState<Conversation[]>([])
@@ -29,6 +35,7 @@ export default function Dashboard() {
   const [searchTerm, setSearchTerm] = useState('')
   const [user, setUser] = useState<any>(null)
   const [showWelcome, setShowWelcome] = useState(false)
+  const [chartDays, setChartDays] = useState(7)
   const router = useRouter()
 
   useEffect(() => {
@@ -45,7 +52,6 @@ export default function Dashboard() {
       setShowWelcome(true)
       fetchConversations()
       
-      // Hide welcome message after 3 seconds
       setTimeout(() => {
         setShowWelcome(false)
       }, 3000)
@@ -122,6 +128,32 @@ export default function Dashboard() {
     }
   }
 
+  // Generate chart data
+  function getChartData(): ChartData[] {
+    const now = new Date()
+    const data: ChartData[] = []
+    
+    // Create array of last N days
+    for (let i = chartDays - 1; i >= 0; i--) {
+      const date = new Date(now)
+      date.setDate(date.getDate() - i)
+      const dateStr = date.toLocaleDateString('en-GB', { day: '2-digit', month: 'short' })
+      
+      // Count calls for this day
+      const callsOnDay = conversations.filter(conv => {
+        const convDate = new Date(conv.created_at)
+        return convDate.toDateString() === date.toDateString()
+      }).length
+      
+      data.push({
+        date: dateStr,
+        calls: callsOnDay
+      })
+    }
+    
+    return data
+  }
+
   if (!user) {
     return (
       <div className="min-h-screen bg-zinc-900 flex items-center justify-center">
@@ -129,6 +161,8 @@ export default function Dashboard() {
       </div>
     )
   }
+
+  const chartData = getChartData()
 
   return (
     <div className="min-h-screen bg-zinc-900 text-zinc-100">
@@ -187,6 +221,67 @@ export default function Dashboard() {
             <p className="text-sm text-zinc-400 mb-1">Escalated</p>
             <p className="text-4xl font-bold text-red-500">0</p>
           </div>
+        </div>
+
+        {/* Call Analytics Chart */}
+        <div className="bg-zinc-800 border border-zinc-700 rounded-lg p-6 mb-8 animate-fade-in">
+          <div className="flex items-center justify-between mb-6">
+            <h2 className="text-xl font-bold text-zinc-100">Call Volume</h2>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setChartDays(7)}
+                className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                  chartDays === 7
+                    ? 'bg-amber-500 text-zinc-900'
+                    : 'bg-zinc-700 text-zinc-300 hover:bg-zinc-600'
+                }`}
+              >
+                7 Days
+              </button>
+              <button
+                onClick={() => setChartDays(30)}
+                className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                  chartDays === 30
+                    ? 'bg-amber-500 text-zinc-900'
+                    : 'bg-zinc-700 text-zinc-300 hover:bg-zinc-600'
+                }`}
+              >
+                30 Days
+              </button>
+            </div>
+          </div>
+          
+          <ResponsiveContainer width="100%" height={250}>
+            <LineChart data={chartData}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#3f3f46" />
+              <XAxis 
+                dataKey="date" 
+                stroke="#a1a1aa"
+                style={{ fontSize: '12px' }}
+              />
+              <YAxis 
+                stroke="#a1a1aa"
+                style={{ fontSize: '12px' }}
+              />
+              <Tooltip 
+                contentStyle={{ 
+                  backgroundColor: '#27272a', 
+                  border: '1px solid #3f3f46',
+                  borderRadius: '8px',
+                  color: '#fafafa'
+                }}
+                labelStyle={{ color: '#a1a1aa' }}
+              />
+              <Line 
+                type="monotone" 
+                dataKey="calls" 
+                stroke="#f59e0b" 
+                strokeWidth={2}
+                dot={{ fill: '#f59e0b', r: 4 }}
+                activeDot={{ r: 6 }}
+              />
+            </LineChart>
+          </ResponsiveContainer>
         </div>
 
         {/* Search Bar */}
