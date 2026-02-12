@@ -34,11 +34,14 @@ export async function POST(request: NextRequest) {
     
     // Connect to ElevenLabs Conversational AI via WebSocket
     const connect = twiml.connect()
-    connect.stream({
-      url: `wss://api.elevenlabs.io/v1/convai/conversation?agent_id=${process.env.ELEVENLABS_AGENT_ID}`,
-      parameters: {
-        authorization: `Bearer ${process.env.ELEVENLABS_API_KEY}`,
-      }
+    const stream = connect.stream({
+      url: `wss://api.elevenlabs.io/v1/convai/conversation?agent_id=${process.env.ELEVENLABS_AGENT_ID}`
+    })
+    
+    // Add authorization as a parameter
+    stream.parameter({
+      name: 'authorization',
+      value: `Bearer ${process.env.ELEVENLABS_API_KEY}`
     })
 
     return new NextResponse(twiml.toString(), {
