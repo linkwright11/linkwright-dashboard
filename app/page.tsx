@@ -214,10 +214,10 @@ export default function Dashboard() {
               <img 
                 src="/logo.png" 
                 alt="LinkWright" 
-                className="h-8 object-contain object-left"
+                className="h-13 object-contain object-left"
               />
-              <p className={`text-[10px] ${colors.textTertiary} mt-0.5 uppercase tracking-wider transition-colors duration-200`}>
-                Call Manager
+              <p className={`text-[11px] ${colors.textTertiary} mt-0.5 ml-12 uppercase tracking-wider transition-colors duration-200`}>
+                Call Management Dashboard
               </p>
             </div>
             <div className="flex items-center gap-3">
