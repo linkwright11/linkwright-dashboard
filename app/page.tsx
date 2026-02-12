@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
+import { useRouter } from 'next/navigation'
 
 type Message = {
   id: string
@@ -26,13 +27,30 @@ export default function Dashboard() {
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const [loadingMessages, setLoadingMessages] = useState(false)
   const [searchTerm, setSearchTerm] = useState('')
+  const [user, setUser] = useState<any>(null)
+  const router = useRouter()
 
   useEffect(() => {
-    fetchConversations()
+    checkUser()
   }, [])
 
+  async function checkUser() {
+    const { data: { user } } = await supabase.auth.getUser()
+    
+    if (!user) {
+      router.push('/login')
+    } else {
+      setUser(user)
+      fetchConversations()
+    }
+  }
+
+  async function handleLogout() {
+    await supabase.auth.signOut()
+    router.push('/login')
+  }
+
   useEffect(() => {
-    // Filter conversations based on search
     if (searchTerm.trim() === '') {
       setFilteredConversations(conversations)
     } else {
@@ -97,6 +115,14 @@ export default function Dashboard() {
     }
   }
 
+  if (!user) {
+    return (
+      <div className="min-h-screen bg-zinc-900 flex items-center justify-center">
+        <div className="text-zinc-400">Loading...</div>
+      </div>
+    )
+  }
+
   return (
     <div className="min-h-screen bg-zinc-900 text-zinc-100">
       {/* Header */}
@@ -107,9 +133,17 @@ export default function Dashboard() {
               <h1 className="text-2xl font-bold text-amber-500">LinkWright</h1>
               <p className="text-sm text-zinc-400">AI Receptionist Dashboard</p>
             </div>
-            <div className="text-left sm:text-right">
-              <p className="text-sm text-zinc-400">Troy Wright</p>
-              <p className="text-xs text-zinc-500">troy@linkwright.co.uk</p>
+            <div className="flex items-center gap-4">
+              <div className="text-left sm:text-right">
+                <p className="text-sm text-zinc-400">Troy Wright</p>
+                <p className="text-xs text-zinc-500">{user.email}</p>
+              </div>
+              <button
+                onClick={handleLogout}
+                className="px-4 py-2 bg-zinc-800 border border-zinc-700 rounded-lg text-sm text-zinc-300 hover:bg-zinc-700 hover:text-amber-500 transition-colors"
+              >
+                Logout
+              </button>
             </div>
           </div>
         </div>
@@ -156,7 +190,6 @@ export default function Dashboard() {
           </div>
           
           {loading ? (
-            // Loading skeleton
             <div className="space-y-4">
               {[1, 2, 3].map((i) => (
                 <div key={i} className="bg-zinc-800 border border-zinc-700 rounded-lg p-6 animate-pulse">
@@ -172,7 +205,6 @@ export default function Dashboard() {
               ))}
             </div>
           ) : filteredConversations.length === 0 ? (
-            // Empty state
             <div className="text-center py-16">
               <div className="inline-block p-6 bg-zinc-800 rounded-full mb-4">
                 <svg className="w-16 h-16 text-zinc-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -195,7 +227,6 @@ export default function Dashboard() {
               )}
             </div>
           ) : (
-            // Call list
             <div className="space-y-4">
               {filteredConversations.map((call, index) => {
                 const isExpanded = expandedId === call.id
@@ -230,10 +261,8 @@ export default function Dashboard() {
                       </div>
                     </div>
                     
-                    {/* Summary */}
                     <p className="text-zinc-400 text-sm mb-3">{call.transcript}</p>
                     
-                    {/* Expandable full conversation */}
                     {isExpanded && (
                       <div className="mt-4 pt-4 border-t border-zinc-700 animate-fade-in">
                         <p className="text-sm text-zinc-400 mb-4 font-semibold">Full Conversation:</p>
@@ -273,7 +302,6 @@ export default function Dashboard() {
                       </div>
                     )}
                     
-                    {/* Click hint */}
                     <div className="mt-3 text-xs text-zinc-500 text-center">
                       {isExpanded ? '▲ Click to collapse' : '▼ Click to view full conversation'}
                     </div>
