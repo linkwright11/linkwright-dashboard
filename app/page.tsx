@@ -28,6 +28,7 @@ export default function Dashboard() {
   const [loadingMessages, setLoadingMessages] = useState(false)
   const [searchTerm, setSearchTerm] = useState('')
   const [user, setUser] = useState<any>(null)
+  const [showWelcome, setShowWelcome] = useState(false)
   const router = useRouter()
 
   useEffect(() => {
@@ -41,7 +42,13 @@ export default function Dashboard() {
       router.push('/login')
     } else {
       setUser(user)
+      setShowWelcome(true)
       fetchConversations()
+      
+      // Hide welcome message after 3 seconds
+      setTimeout(() => {
+        setShowWelcome(false)
+      }, 3000)
     }
   }
 
@@ -125,12 +132,27 @@ export default function Dashboard() {
 
   return (
     <div className="min-h-screen bg-zinc-900 text-zinc-100">
+      {/* Welcome Toast */}
+      {showWelcome && (
+        <div className="fixed top-4 right-4 z-50 animate-fade-in">
+          <div className="bg-amber-500 text-zinc-900 px-6 py-3 rounded-lg shadow-lg font-semibold">
+            👋 Welcome back, Troy!
+          </div>
+        </div>
+      )}
+
       {/* Header */}
       <header className="border-b border-zinc-800 bg-zinc-950 sticky top-0 z-10 backdrop-blur-sm bg-zinc-950/95">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4">
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
             <div>
-              <h1 className="text-2xl font-bold text-amber-500">LinkWright</h1>
+              <div className="inline-block bg-white rounded-lg px-4 py-2 mb-1">
+                <img 
+                  src="/logo.png" 
+                  alt="LinkWright" 
+                  className="h-10"
+                />
+              </div>
               <p className="text-sm text-zinc-400">AI Receptionist Dashboard</p>
             </div>
             <div className="flex items-center gap-4">
