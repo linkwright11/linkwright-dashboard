@@ -18,6 +18,7 @@ type Conversation = {
   customer_phone: string
   transcript: string
   duration_seconds: number
+  status?: string
   messages?: Message[]
 }
 
@@ -30,9 +31,11 @@ export default function Dashboard() {
   const [conversations, setConversations] = useState<Conversation[]>([])
   const [filteredConversations, setFilteredConversations] = useState<Conversation[]>([])
   const [loading, setLoading] = useState(true)
+  const [refreshing, setRefreshing] = useState(false)
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const [loadingMessages, setLoadingMessages] = useState(false)
   const [searchTerm, setSearchTerm] = useState('')
+  const [statusFilter, setStatusFilter] = useState('all')
   const [user, setUser] = useState<any>(null)
   const [showWelcome, setShowWelcome] = useState(false)
   const [chartDays, setChartDays] = useState(7)
@@ -41,6 +44,14 @@ export default function Dashboard() {
   useEffect(() => {
     checkUser()
   }, [])
+
+  // Get time-based greeting
+  function getGreeting() {
+    const hour = new Date().getHours()
+    if (hour < 12) return 'Good morning'
+    if (hour < 18) return 'Good afternoon'
+    return 'Good evening'
+  }
 
   async function checkUser() {
     const { data: { user } } = await supabase.auth.getUser()
@@ -63,17 +74,27 @@ export default function Dashboard() {
     router.push('/login')
   }
 
+  // Apply both search and status filters
   useEffect(() => {
-    if (searchTerm.trim() === '') {
-      setFilteredConversations(conversations)
-    } else {
-      const filtered = conversations.filter(conv => 
+    let filtered = conversations
+
+    // Apply status filter
+    if (statusFilter !== 'all') {
+      filtered = filtered.filter(conv => 
+        (conv.status || 'completed') === statusFilter
+      )
+    }
+
+    // Apply search filter
+    if (searchTerm.trim() !== '') {
+      filtered = filtered.filter(conv => 
         conv.customer_phone.includes(searchTerm) ||
         conv.transcript.toLowerCase().includes(searchTerm.toLowerCase())
       )
-      setFilteredConversations(filtered)
     }
-  }, [searchTerm, conversations])
+
+    setFilteredConversations(filtered)
+  }, [searchTerm, statusFilter, conversations])
 
   async function fetchConversations() {
     const { data, error } = await supabase
@@ -89,6 +110,12 @@ export default function Dashboard() {
       setFilteredConversations(data || [])
     }
     setLoading(false)
+  }
+
+  async function handleRefresh() {
+    setRefreshing(true)
+    await fetchConversations()
+    setTimeout(() => setRefreshing(false), 500)
   }
 
   async function fetchMessages(conversationId: string) {
@@ -128,18 +155,42 @@ export default function Dashboard() {
     }
   }
 
+  // Calculate stats
+  function getCallsToday() {
+    const today = new Date().toDateString()
+    return conversations.filter(conv => 
+      new Date(conv.created_at).toDateString() === today
+    ).length
+  }
+
+  function getCallsThisWeek() {
+    const weekAgo = new Date()
+    weekAgo.setDate(weekAgo.getDate() - 7)
+    return conversations.filter(conv => 
+      new Date(conv.created_at) >= weekAgo
+    ).length
+  }
+
+  function getAverageDuration() {
+    if (conversations.length === 0) return 0
+    const total = conversations.reduce((sum, conv) => sum + conv.duration_seconds, 0)
+    return Math.round(total / conversations.length)
+  }
+
+  function getStatusCount(status: string) {
+    return conversations.filter(conv => (conv.status || 'completed') === status).length
+  }
+
   // Generate chart data
   function getChartData(): ChartData[] {
     const now = new Date()
     const data: ChartData[] = []
     
-    // Create array of last N days
     for (let i = chartDays - 1; i >= 0; i--) {
       const date = new Date(now)
       date.setDate(date.getDate() - i)
       const dateStr = date.toLocaleDateString('en-GB', { day: '2-digit', month: 'short' })
       
-      // Count calls for this day
       const callsOnDay = conversations.filter(conv => {
         const convDate = new Date(conv.created_at)
         return convDate.toDateString() === date.toDateString()
@@ -163,6 +214,7 @@ export default function Dashboard() {
   }
 
   const chartData = getChartData()
+  const avgDuration = getAverageDuration()
 
   return (
     <div className="min-h-screen bg-zinc-900 text-zinc-100">
@@ -170,7 +222,7 @@ export default function Dashboard() {
       {showWelcome && (
         <div className="fixed top-4 right-4 z-50 animate-fade-in">
           <div className="bg-amber-500 text-zinc-900 px-6 py-3 rounded-lg shadow-lg font-semibold">
-            👋 Welcome back, Troy!
+            👋 {getGreeting()}, Troy!
           </div>
         </div>
       )}
@@ -190,6 +242,21 @@ export default function Dashboard() {
               <p className="text-sm text-zinc-400">Call Management Dashboard</p>
             </div>
             <div className="flex items-center gap-4">
+              <button
+                onClick={handleRefresh}
+                disabled={refreshing}
+                className="px-4 py-2 bg-zinc-800 border border-zinc-700 rounded-lg text-sm text-zinc-300 hover:bg-zinc-700 hover:text-amber-500 transition-colors disabled:opacity-50 flex items-center gap-2"
+              >
+                <svg 
+                  className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`}
+                  fill="none" 
+                  stroke="currentColor" 
+                  viewBox="0 0 24 24"
+                >
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                </svg>
+                {refreshing ? 'Refreshing...' : 'Refresh'}
+              </button>
               <div className="text-left sm:text-right">
                 <p className="text-sm text-zinc-400">Troy Wright</p>
                 <p className="text-xs text-zinc-500">{user.email}</p>
@@ -207,19 +274,29 @@ export default function Dashboard() {
 
       {/* Main Content */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 py-8">
-        {/* Stats */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 sm:gap-6 mb-8 animate-fade-in">
+        {/* Enhanced Stats */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6 mb-8 animate-fade-in">
           <div className="bg-zinc-800 border border-zinc-700 rounded-lg p-6 hover:border-amber-500/50 transition-all hover:scale-105">
-            <p className="text-sm text-zinc-400 mb-1">Total Calls</p>
-            <p className="text-4xl font-bold text-amber-500">{conversations.length}</p>
+            <p className="text-sm text-zinc-400 mb-1">Calls Today</p>
+            <p className="text-4xl font-bold text-amber-500">{getCallsToday()}</p>
+            <p className="text-xs text-zinc-500 mt-2">out of {conversations.length} total</p>
+          </div>
+          <div className="bg-zinc-800 border border-zinc-700 rounded-lg p-6 hover:border-blue-500/50 transition-all hover:scale-105">
+            <p className="text-sm text-zinc-400 mb-1">This Week</p>
+            <p className="text-4xl font-bold text-blue-500">{getCallsThisWeek()}</p>
+            <p className="text-xs text-zinc-500 mt-2">last 7 days</p>
+          </div>
+          <div className="bg-zinc-800 border border-zinc-700 rounded-lg p-6 hover:border-purple-500/50 transition-all hover:scale-105">
+            <p className="text-sm text-zinc-400 mb-1">Avg Duration</p>
+            <p className="text-4xl font-bold text-purple-500">
+              {Math.floor(avgDuration / 60)}:{(avgDuration % 60).toString().padStart(2, '0')}
+            </p>
+            <p className="text-xs text-zinc-500 mt-2">minutes</p>
           </div>
           <div className="bg-zinc-800 border border-zinc-700 rounded-lg p-6 hover:border-green-500/50 transition-all hover:scale-105">
             <p className="text-sm text-zinc-400 mb-1">Answered</p>
             <p className="text-4xl font-bold text-green-500">{conversations.length}</p>
-          </div>
-          <div className="bg-zinc-800 border border-zinc-700 rounded-lg p-6 hover:border-red-500/50 transition-all hover:scale-105">
-            <p className="text-sm text-zinc-400 mb-1">Escalated</p>
-            <p className="text-4xl font-bold text-red-500">0</p>
+            <p className="text-xs text-zinc-500 mt-2">100% answer rate</p>
           </div>
         </div>
 
@@ -284,6 +361,50 @@ export default function Dashboard() {
           </ResponsiveContainer>
         </div>
 
+        {/* Status Filters */}
+        <div className="flex flex-wrap gap-2 mb-6 animate-fade-in-delay">
+          <button
+            onClick={() => setStatusFilter('all')}
+            className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+              statusFilter === 'all'
+                ? 'bg-amber-500 text-zinc-900'
+                : 'bg-zinc-800 border border-zinc-700 text-zinc-300 hover:bg-zinc-700'
+            }`}
+          >
+            All ({conversations.length})
+          </button>
+          <button
+            onClick={() => setStatusFilter('completed')}
+            className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+              statusFilter === 'completed'
+                ? 'bg-green-500 text-zinc-900'
+                : 'bg-zinc-800 border border-zinc-700 text-zinc-300 hover:bg-zinc-700'
+            }`}
+          >
+            Completed ({getStatusCount('completed')})
+          </button>
+          <button
+            onClick={() => setStatusFilter('in_progress')}
+            className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+              statusFilter === 'in_progress'
+                ? 'bg-yellow-500 text-zinc-900'
+                : 'bg-zinc-800 border border-zinc-700 text-zinc-300 hover:bg-zinc-700'
+            }`}
+          >
+            In Progress ({getStatusCount('in_progress')})
+          </button>
+          <button
+            onClick={() => setStatusFilter('escalated')}
+            className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+              statusFilter === 'escalated'
+                ? 'bg-red-500 text-zinc-900'
+                : 'bg-zinc-800 border border-zinc-700 text-zinc-300 hover:bg-zinc-700'
+            }`}
+          >
+            Escalated ({getStatusCount('escalated')})
+          </button>
+        </div>
+
         {/* Search Bar */}
         <div className="mb-6 animate-fade-in-delay">
           <input
@@ -299,7 +420,7 @@ export default function Dashboard() {
         <div className="animate-fade-in-delay-2">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-xl font-bold text-zinc-100">Recent Calls</h2>
-            {searchTerm && (
+            {(searchTerm || statusFilter !== 'all') && (
               <p className="text-sm text-zinc-400">
                 {filteredConversations.length} result{filteredConversations.length !== 1 ? 's' : ''}
               </p>
@@ -329,17 +450,20 @@ export default function Dashboard() {
                 </svg>
               </div>
               <h3 className="text-xl font-semibold text-zinc-300 mb-2">
-                {searchTerm ? 'No calls found' : 'No calls yet'}
+                {searchTerm || statusFilter !== 'all' ? 'No calls found' : 'No calls yet'}
               </h3>
               <p className="text-zinc-500">
-                {searchTerm ? 'Try a different search term' : 'Your calls will appear here once your AI starts answering'}
+                {searchTerm || statusFilter !== 'all' ? 'Try adjusting your filters' : 'Your calls will appear here once your AI starts answering'}
               </p>
-              {searchTerm && (
+              {(searchTerm || statusFilter !== 'all') && (
                 <button
-                  onClick={() => setSearchTerm('')}
+                  onClick={() => {
+                    setSearchTerm('')
+                    setStatusFilter('all')
+                  }}
                   className="mt-4 px-4 py-2 bg-amber-500 text-zinc-900 rounded-lg hover:bg-amber-400 transition-colors font-medium"
                 >
-                  Clear search
+                  Clear filters
                 </button>
               )}
             </div>
@@ -347,6 +471,7 @@ export default function Dashboard() {
             <div className="space-y-4">
               {filteredConversations.map((call, index) => {
                 const isExpanded = expandedId === call.id
+                const status = call.status || 'completed'
                 
                 return (
                   <div 
@@ -369,8 +494,16 @@ export default function Dashboard() {
                         </p>
                       </div>
                       <div className="flex items-center gap-3 sm:text-right">
-                        <span className="inline-block px-3 py-1 bg-green-500/20 text-green-500 rounded-full text-sm font-medium whitespace-nowrap">
-                          Completed
+                        <span className={`inline-block px-3 py-1 rounded-full text-sm font-medium whitespace-nowrap ${
+                          status === 'completed' ? 'bg-green-500/20 text-green-500' :
+                          status === 'in_progress' ? 'bg-yellow-500/20 text-yellow-500' :
+                          status === 'escalated' ? 'bg-red-500/20 text-red-500' :
+                          'bg-zinc-500/20 text-zinc-500'
+                        }`}>
+                          {status === 'completed' ? 'Completed' :
+                           status === 'in_progress' ? 'In Progress' :
+                           status === 'escalated' ? 'Escalated' :
+                           'Unknown'}
                         </span>
                         <p className="text-sm text-zinc-400 whitespace-nowrap">
                           {Math.floor(call.duration_seconds / 60)}m {call.duration_seconds % 60}s
