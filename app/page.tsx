@@ -231,15 +231,13 @@ export default function Dashboard() {
       <header className="border-b border-zinc-800 bg-zinc-950 sticky top-0 z-10 backdrop-blur-sm bg-zinc-950/95">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4">
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-            <div>
-              <div className="inline-block bg-white rounded-lg px-4 py-2 mb-1">
-                <img 
-                  src="/logo.png" 
-                  alt="LinkWright" 
-                  className="h-10"
-                />
-              </div>
-              <p className="text-sm text-zinc-400">Call Management Dashboard</p>
+            <div className="flex flex-col">
+              <img 
+                src="/logo.png" 
+                alt="LinkWright" 
+                className="h-12 object-contain object-left -ml-6"
+              />
+              <p className="text-xs text-zinc-500 mt-0">Call Management Dashboard</p>
             </div>
             <div className="flex items-center gap-4">
               <button
@@ -271,7 +269,6 @@ export default function Dashboard() {
           </div>
         </div>
       </header>
-
       {/* Main Content */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 py-8">
         {/* Enhanced Stats */}

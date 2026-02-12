@@ -34,17 +34,14 @@ export default function Login() {
     <div className="min-h-screen bg-zinc-900 flex items-center justify-center p-4">
       <div className="w-full max-w-md">
  {/* Logo/Header */}
-<div className="text-center mb-8">
-  <div className="inline-block bg-white rounded-lg px-8 py-4 mb-3">
-    <img 
-      src="/logo.png" 
-      alt="LinkWright" 
-      className="h-20"
-    />
-  </div>
-  <p className="text-zinc-400">Call Management Dashboard</p>
+ <div className="flex flex-col items-center mb-5">
+  <img 
+    src="/logo.png" 
+    alt="LinkWright" 
+    className="h-17 object-contain mb -1 -ml-12"
+  />
+  <p className="text-sm text-zinc-400">Call Management Dashboard</p>
 </div>
-
         {/* Login Card */}
         <div className="bg-zinc-800 border border-zinc-700 rounded-lg p-8 shadow-xl">
           <h2 className="text-2xl font-bold text-zinc-100 mb-6">Sign In</h2>
