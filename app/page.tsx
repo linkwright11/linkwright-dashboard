@@ -153,7 +153,7 @@ export default function Dashboard() {
                   className="h-10"
                 />
               </div>
-              <p className="text-sm text-zinc-400">AI Receptionist Dashboard</p>
+              <p className="text-sm text-zinc-400">Call Management Dashboard</p>
             </div>
             <div className="flex items-center gap-4">
               <div className="text-left sm:text-right">

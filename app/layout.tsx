@@ -14,7 +14,7 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: "LinkWright Dashboard",
-  description: "AI Receptionist Dashboard",
+  description: "Call Management Dashboard",
   icons: {
     icon: '/logo.png',
   },

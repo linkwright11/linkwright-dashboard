@@ -42,7 +42,7 @@ export default function Login() {
       className="h-20"
     />
   </div>
-  <p className="text-zinc-400">AI Receptionist Dashboard</p>
+  <p className="text-zinc-400">Call Management Dashboard</p>
 </div>
 
         {/* Login Card */}
