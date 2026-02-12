@@ -1,4 +1,4 @@
-'use client'
+'use client' // Force rebuild
 
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
