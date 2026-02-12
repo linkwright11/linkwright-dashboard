@@ -141,7 +141,11 @@ export default function Dashboard() {
   }
 
   async function selectCall(call: Conversation) {
-    if (selectedCall?.id === call.id) return
+    // If clicking the same call, deselect it
+    if (selectedCall?.id === call.id) {
+      setSelectedCall(null)
+      return
+    }
     
     setSelectedCall(call)
     const messages = await fetchMessages(call.id)
