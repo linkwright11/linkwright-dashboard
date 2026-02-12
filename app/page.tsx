@@ -1,9 +1,8 @@
-'use client' // Force rebuild
+'use client'
 
 import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
 
 type Message = {
   id: string
@@ -22,30 +21,36 @@ type Conversation = {
   messages?: Message[]
 }
 
-type ChartData = {
-  date: string
-  calls: number
-}
-
 export default function Dashboard() {
   const [conversations, setConversations] = useState<Conversation[]>([])
   const [filteredConversations, setFilteredConversations] = useState<Conversation[]>([])
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
-  const [expandedId, setExpandedId] = useState<string | null>(null)
+  const [selectedCall, setSelectedCall] = useState<Conversation | null>(null)
   const [loadingMessages, setLoadingMessages] = useState(false)
   const [searchTerm, setSearchTerm] = useState('')
   const [statusFilter, setStatusFilter] = useState('all')
   const [user, setUser] = useState<any>(null)
   const [showWelcome, setShowWelcome] = useState(false)
-  const [chartDays, setChartDays] = useState(7)
+  const [theme, setTheme] = useState<'dark' | 'light'>('dark')
   const router = useRouter()
+
+  useEffect(() => {
+    // Load theme from localStorage
+    const savedTheme = localStorage.getItem('theme') as 'dark' | 'light' || 'dark'
+    setTheme(savedTheme)
+  }, [])
 
   useEffect(() => {
     checkUser()
   }, [])
 
-  // Get time-based greeting
+  function toggleTheme() {
+    const newTheme = theme === 'dark' ? 'light' : 'dark'
+    setTheme(newTheme)
+    localStorage.setItem('theme', newTheme)
+  }
+
   function getGreeting() {
     const hour = new Date().getHours()
     if (hour < 12) return 'Good morning'
@@ -74,18 +79,15 @@ export default function Dashboard() {
     router.push('/login')
   }
 
-  // Apply both search and status filters
   useEffect(() => {
     let filtered = conversations
 
-    // Apply status filter
     if (statusFilter !== 'all') {
       filtered = filtered.filter(conv => 
         (conv.status || 'completed') === statusFilter
       )
     }
 
-    // Apply search filter
     if (searchTerm.trim() !== '') {
       filtered = filtered.filter(conv => 
         conv.customer_phone.includes(searchTerm) ||
@@ -137,25 +139,18 @@ export default function Dashboard() {
     return data || []
   }
 
-  async function toggleExpand(conversationId: string) {
-    if (expandedId === conversationId) {
-      setExpandedId(null)
-    } else {
-      const messages = await fetchMessages(conversationId)
-      
-      setConversations(prevConvs => 
-        prevConvs.map(conv => 
-          conv.id === conversationId 
-            ? { ...conv, messages } 
-            : conv
-        )
-      )
-      
-      setExpandedId(conversationId)
-    }
+  async function selectCall(call: Conversation) {
+    if (selectedCall?.id === call.id) return
+    
+    setSelectedCall(call)
+    const messages = await fetchMessages(call.id)
+    
+    setSelectedCall({
+      ...call,
+      messages
+    })
   }
 
-  // Calculate stats
   function getCallsToday() {
     const today = new Date().toDateString()
     return conversations.filter(conv => 
@@ -163,61 +158,44 @@ export default function Dashboard() {
     ).length
   }
 
-  function getCallsThisWeek() {
-    const weekAgo = new Date()
-    weekAgo.setDate(weekAgo.getDate() - 7)
-    return conversations.filter(conv => 
-      new Date(conv.created_at) >= weekAgo
-    ).length
-  }
-
-  function getAverageDuration() {
-    if (conversations.length === 0) return 0
-    const total = conversations.reduce((sum, conv) => sum + conv.duration_seconds, 0)
-    return Math.round(total / conversations.length)
-  }
-
   function getStatusCount(status: string) {
     return conversations.filter(conv => (conv.status || 'completed') === status).length
   }
 
-  // Generate chart data
-  function getChartData(): ChartData[] {
-    const now = new Date()
-    const data: ChartData[] = []
-    
-    for (let i = chartDays - 1; i >= 0; i--) {
-      const date = new Date(now)
-      date.setDate(date.getDate() - i)
-      const dateStr = date.toLocaleDateString('en-GB', { day: '2-digit', month: 'short' })
-      
-      const callsOnDay = conversations.filter(conv => {
-        const convDate = new Date(conv.created_at)
-        return convDate.toDateString() === date.toDateString()
-      }).length
-      
-      data.push({
-        date: dateStr,
-        calls: callsOnDay
-      })
-    }
-    
-    return data
-  }
-
   if (!user) {
     return (
-      <div className="min-h-screen bg-zinc-900 flex items-center justify-center">
-        <div className="text-zinc-400">Loading...</div>
+      <div className={`min-h-screen flex items-center justify-center ${
+        theme === 'dark' ? 'bg-[#0a0a0a]' : 'bg-gray-50'
+      }`}>
+        <div className={theme === 'dark' ? 'text-zinc-500' : 'text-gray-500'}>Loading...</div>
       </div>
     )
   }
 
-  const chartData = getChartData()
-  const avgDuration = getAverageDuration()
+  const colors = theme === 'dark' ? {
+    bg: 'bg-[#0a0a0a]',
+    text: 'text-zinc-100',
+    textSecondary: 'text-zinc-400',
+    textTertiary: 'text-zinc-500',
+    border: 'border-zinc-800/50',
+    cardBg: 'bg-zinc-900/50',
+    cardHover: 'hover:bg-zinc-900/80',
+    inputBg: 'bg-zinc-900',
+    buttonBg: 'bg-zinc-900',
+  } : {
+    bg: 'bg-gray-50',
+    text: 'text-gray-900',
+    textSecondary: 'text-gray-600',
+    textTertiary: 'text-gray-400',
+    border: 'border-gray-200',
+    cardBg: 'bg-white',
+    cardHover: 'hover:bg-gray-50',
+    inputBg: 'bg-white',
+    buttonBg: 'bg-white',
+  }
 
   return (
-    <div className="min-h-screen bg-zinc-900 text-zinc-100">
+    <div className={`min-h-screen ${colors.bg} ${colors.text} transition-colors duration-200`}>
       {/* Welcome Toast */}
       {showWelcome && (
         <div className="fixed top-4 right-4 z-50 animate-fade-in">
@@ -228,40 +206,55 @@ export default function Dashboard() {
       )}
 
       {/* Header */}
-      <header className="border-b border-zinc-800 bg-zinc-950 sticky top-0 z-10 backdrop-blur-sm bg-zinc-950/95">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4">
-          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+      <header className={`border-b ${colors.border} ${colors.bg} sticky top-0 z-10 backdrop-blur-sm transition-colors duration-200`}>
+        <div className="max-w-[1600px] mx-auto px-6 py-4">
+          <div className="flex items-center justify-between">
             <div className="flex flex-col">
               <img 
                 src="/logo.png" 
                 alt="LinkWright" 
-                className="h-12 object-contain object-left -ml-6"
+                className="h-8 object-contain object-left"
               />
-              <p className="text-xs text-zinc-500 mt-0">Call Management Dashboard</p>
+              <p className={`text-[10px] ${colors.textTertiary} mt-0.5 uppercase tracking-wider transition-colors duration-200`}>
+                Call Manager
+              </p>
             </div>
-            <div className="flex items-center gap-4">
+            <div className="flex items-center gap-3">
+              {/* Theme Toggle */}
+              <button
+                onClick={toggleTheme}
+                className={`p-2 ${colors.cardBg} border ${colors.border} rounded-lg transition-colors`}
+                title={theme === 'dark' ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
+              >
+                {theme === 'dark' ? (
+                  <svg className="w-5 h-5 text-amber-500" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M10 2a1 1 0 011 1v1a1 1 0 11-2 0V3a1 1 0 011-1zm4 8a4 4 0 11-8 0 4 4 0 018 0zm-.464 4.95l.707.707a1 1 0 001.414-1.414l-.707-.707a1 1 0 00-1.414 1.414zm2.12-10.607a1 1 0 010 1.414l-.706.707a1 1 0 11-1.414-1.414l.707-.707a1 1 0 011.414 0zM17 11a1 1 0 100-2h-1a1 1 0 100 2h1zm-7 4a1 1 0 011 1v1a1 1 0 11-2 0v-1a1 1 0 011-1zM5.05 6.464A1 1 0 106.465 5.05l-.708-.707a1 1 0 00-1.414 1.414l.707.707zm1.414 8.486l-.707.707a1 1 0 01-1.414-1.414l.707-.707a1 1 0 011.414 1.414zM4 11a1 1 0 100-2H3a1 1 0 000 2h1z" clipRule="evenodd" />
+                  </svg>
+                ) : (
+                  <svg className="w-5 h-5 text-gray-700" fill="currentColor" viewBox="0 0 20 20">
+                    <path d="M17.293 13.293A8 8 0 016.707 2.707a8.001 8.001 0 1010.586 10.586z" />
+                  </svg>
+                )}
+              </button>
+
               <button
                 onClick={handleRefresh}
                 disabled={refreshing}
-                className="px-4 py-2 bg-zinc-800 border border-zinc-700 rounded-lg text-sm text-zinc-300 hover:bg-zinc-700 hover:text-amber-500 transition-colors disabled:opacity-50 flex items-center gap-2"
+                className={`p-2 ${colors.cardHover} rounded-lg transition-colors disabled:opacity-50`}
+                title="Refresh"
               >
                 <svg 
-                  className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`}
+                  className={`w-5 h-5 ${colors.textSecondary} ${refreshing ? 'animate-spin' : ''} transition-colors duration-200`}
                   fill="none" 
                   stroke="currentColor" 
                   viewBox="0 0 24 24"
                 >
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                 </svg>
-                {refreshing ? 'Refreshing...' : 'Refresh'}
               </button>
-              <div className="text-left sm:text-right">
-                <p className="text-sm text-zinc-400">Troy Wright</p>
-                <p className="text-xs text-zinc-500">{user.email}</p>
-              </div>
               <button
                 onClick={handleLogout}
-                className="px-4 py-2 bg-zinc-800 border border-zinc-700 rounded-lg text-sm text-zinc-300 hover:bg-zinc-700 hover:text-amber-500 transition-colors"
+                className={`px-4 py-2 ${colors.buttonBg} border ${colors.border} rounded-lg text-sm ${colors.textSecondary} hover:${colors.text} transition-colors duration-200`}
               >
                 Logout
               </button>
@@ -269,294 +262,264 @@ export default function Dashboard() {
           </div>
         </div>
       </header>
+
       {/* Main Content */}
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 py-8">
-        {/* Enhanced Stats */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6 mb-8 animate-fade-in">
-          <div className="bg-zinc-800 border border-zinc-700 rounded-lg p-6 hover:border-amber-500/50 transition-all hover:scale-105">
-            <p className="text-sm text-zinc-400 mb-1">Calls Today</p>
-            <p className="text-4xl font-bold text-amber-500">{getCallsToday()}</p>
-            <p className="text-xs text-zinc-500 mt-2">out of {conversations.length} total</p>
-          </div>
-          <div className="bg-zinc-800 border border-zinc-700 rounded-lg p-6 hover:border-blue-500/50 transition-all hover:scale-105">
-            <p className="text-sm text-zinc-400 mb-1">This Week</p>
-            <p className="text-4xl font-bold text-blue-500">{getCallsThisWeek()}</p>
-            <p className="text-xs text-zinc-500 mt-2">last 7 days</p>
-          </div>
-          <div className="bg-zinc-800 border border-zinc-700 rounded-lg p-6 hover:border-purple-500/50 transition-all hover:scale-105">
-            <p className="text-sm text-zinc-400 mb-1">Avg Duration</p>
-            <p className="text-4xl font-bold text-purple-500">
-              {Math.floor(avgDuration / 60)}:{(avgDuration % 60).toString().padStart(2, '0')}
-            </p>
-            <p className="text-xs text-zinc-500 mt-2">minutes</p>
-          </div>
-          <div className="bg-zinc-800 border border-zinc-700 rounded-lg p-6 hover:border-green-500/50 transition-all hover:scale-105">
-            <p className="text-sm text-zinc-400 mb-1">Answered</p>
-            <p className="text-4xl font-bold text-green-500">{conversations.length}</p>
-            <p className="text-xs text-zinc-500 mt-2">100% answer rate</p>
-          </div>
-        </div>
-
-        {/* Call Analytics Chart */}
-        <div className="bg-zinc-800 border border-zinc-700 rounded-lg p-6 mb-8 animate-fade-in">
-          <div className="flex items-center justify-between mb-6">
-            <h2 className="text-xl font-bold text-zinc-100">Call Volume</h2>
-            <div className="flex gap-2">
-              <button
-                onClick={() => setChartDays(7)}
-                className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                  chartDays === 7
-                    ? 'bg-amber-500 text-zinc-900'
-                    : 'bg-zinc-700 text-zinc-300 hover:bg-zinc-600'
-                }`}
-              >
-                7 Days
-              </button>
-              <button
-                onClick={() => setChartDays(30)}
-                className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                  chartDays === 30
-                    ? 'bg-amber-500 text-zinc-900'
-                    : 'bg-zinc-700 text-zinc-300 hover:bg-zinc-600'
-                }`}
-              >
-                30 Days
-              </button>
-            </div>
-          </div>
-          
-          <ResponsiveContainer width="100%" height={250}>
-            <LineChart data={chartData}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#3f3f46" />
-              <XAxis 
-                dataKey="date" 
-                stroke="#a1a1aa"
-                style={{ fontSize: '12px' }}
-              />
-              <YAxis 
-                stroke="#a1a1aa"
-                style={{ fontSize: '12px' }}
-              />
-              <Tooltip 
-                contentStyle={{ 
-                  backgroundColor: '#27272a', 
-                  border: '1px solid #3f3f46',
-                  borderRadius: '8px',
-                  color: '#fafafa'
-                }}
-                labelStyle={{ color: '#a1a1aa' }}
-              />
-              <Line 
-                type="monotone" 
-                dataKey="calls" 
-                stroke="#f59e0b" 
-                strokeWidth={2}
-                dot={{ fill: '#f59e0b', r: 4 }}
-                activeDot={{ r: 6 }}
-              />
-            </LineChart>
-          </ResponsiveContainer>
-        </div>
-
-        {/* Status Filters */}
-        <div className="flex flex-wrap gap-2 mb-6 animate-fade-in-delay">
-          <button
-            onClick={() => setStatusFilter('all')}
-            className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-              statusFilter === 'all'
-                ? 'bg-amber-500 text-zinc-900'
-                : 'bg-zinc-800 border border-zinc-700 text-zinc-300 hover:bg-zinc-700'
-            }`}
-          >
-            All ({conversations.length})
-          </button>
-          <button
-            onClick={() => setStatusFilter('completed')}
-            className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-              statusFilter === 'completed'
-                ? 'bg-green-500 text-zinc-900'
-                : 'bg-zinc-800 border border-zinc-700 text-zinc-300 hover:bg-zinc-700'
-            }`}
-          >
-            Completed ({getStatusCount('completed')})
-          </button>
-          <button
-            onClick={() => setStatusFilter('in_progress')}
-            className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-              statusFilter === 'in_progress'
-                ? 'bg-yellow-500 text-zinc-900'
-                : 'bg-zinc-800 border border-zinc-700 text-zinc-300 hover:bg-zinc-700'
-            }`}
-          >
-            In Progress ({getStatusCount('in_progress')})
-          </button>
-          <button
-            onClick={() => setStatusFilter('escalated')}
-            className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-              statusFilter === 'escalated'
-                ? 'bg-red-500 text-zinc-900'
-                : 'bg-zinc-800 border border-zinc-700 text-zinc-300 hover:bg-zinc-700'
-            }`}
-          >
-            Escalated ({getStatusCount('escalated')})
-          </button>
-        </div>
-
-        {/* Search Bar */}
-        <div className="mb-6 animate-fade-in-delay">
-          <input
-            type="text"
-            placeholder="Search by phone number or keywords..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-4 py-3 text-zinc-100 placeholder-zinc-500 focus:outline-none focus:border-amber-500 transition-colors"
-          />
-        </div>
-
-        {/* Calls List */}
-        <div className="animate-fade-in-delay-2">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-xl font-bold text-zinc-100">Recent Calls</h2>
-            {(searchTerm || statusFilter !== 'all') && (
-              <p className="text-sm text-zinc-400">
-                {filteredConversations.length} result{filteredConversations.length !== 1 ? 's' : ''}
-              </p>
-            )}
-          </div>
-          
-          {loading ? (
-            <div className="space-y-4">
-              {[1, 2, 3].map((i) => (
-                <div key={i} className="bg-zinc-800 border border-zinc-700 rounded-lg p-6 animate-pulse">
-                  <div className="flex justify-between mb-3">
-                    <div>
-                      <div className="h-6 bg-zinc-700 rounded w-32 mb-2"></div>
-                      <div className="h-4 bg-zinc-700 rounded w-24"></div>
-                    </div>
-                    <div className="h-8 bg-zinc-700 rounded w-24"></div>
-                  </div>
-                  <div className="h-4 bg-zinc-700 rounded w-full"></div>
-                </div>
-              ))}
-            </div>
-          ) : filteredConversations.length === 0 ? (
-            <div className="text-center py-16">
-              <div className="inline-block p-6 bg-zinc-800 rounded-full mb-4">
-                <svg className="w-16 h-16 text-zinc-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <main className="max-w-[1600px] mx-auto px-6 py-6">
+        {/* Stats */}
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+          <div className={`${colors.cardBg} border ${colors.border} rounded-xl p-4 transition-colors duration-200`}>
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-amber-500/10 rounded-lg">
+                <svg className="w-5 h-5 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
                 </svg>
               </div>
-              <h3 className="text-xl font-semibold text-zinc-300 mb-2">
-                {searchTerm || statusFilter !== 'all' ? 'No calls found' : 'No calls yet'}
-              </h3>
-              <p className="text-zinc-500">
-                {searchTerm || statusFilter !== 'all' ? 'Try adjusting your filters' : 'Your calls will appear here once your AI starts answering'}
-              </p>
-              {(searchTerm || statusFilter !== 'all') && (
-                <button
-                  onClick={() => {
-                    setSearchTerm('')
-                    setStatusFilter('all')
-                  }}
-                  className="mt-4 px-4 py-2 bg-amber-500 text-zinc-900 rounded-lg hover:bg-amber-400 transition-colors font-medium"
-                >
-                  Clear filters
-                </button>
-              )}
+              <div>
+                <p className={`text-2xl font-bold ${colors.text} transition-colors duration-200`}>{getCallsToday()}</p>
+                <p className={`text-xs ${colors.textTertiary} uppercase tracking-wide transition-colors duration-200`}>Calls Today</p>
+              </div>
             </div>
-          ) : (
-            <div className="space-y-4">
-              {filteredConversations.map((call, index) => {
-                const isExpanded = expandedId === call.id
+          </div>
+
+          <div className={`${colors.cardBg} border ${colors.border} rounded-xl p-4 transition-colors duration-200`}>
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-green-500/10 rounded-lg">
+                <svg className="w-5 h-5 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+              </div>
+              <div>
+                <p className={`text-2xl font-bold ${colors.text} transition-colors duration-200`}>{getStatusCount('completed')}</p>
+                <p className={`text-xs ${colors.textTertiary} uppercase tracking-wide transition-colors duration-200`}>Booked</p>
+              </div>
+            </div>
+          </div>
+
+          <div className={`${colors.cardBg} border ${colors.border} rounded-xl p-4 transition-colors duration-200`}>
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-yellow-500/10 rounded-lg">
+                <svg className="w-5 h-5 text-yellow-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+              </div>
+              <div>
+                <p className={`text-2xl font-bold ${colors.text} transition-colors duration-200`}>{getStatusCount('in_progress')}</p>
+                <p className={`text-xs ${colors.textTertiary} uppercase tracking-wide transition-colors duration-200`}>Needs Callback</p>
+              </div>
+            </div>
+          </div>
+
+          <div className={`${colors.cardBg} border ${colors.border} rounded-xl p-4 transition-colors duration-200`}>
+            <div className="flex items-center gap-3">
+              <div className={`p-2 ${theme === 'dark' ? 'bg-zinc-700/10' : 'bg-gray-200'} rounded-lg transition-colors duration-200`}>
+                <svg className={`w-5 h-5 ${theme === 'dark' ? 'text-zinc-500' : 'text-gray-600'} transition-colors duration-200`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
+                </svg>
+              </div>
+              <div>
+                <p className={`text-2xl font-bold ${colors.text} transition-colors duration-200`}>{getStatusCount('escalated')}</p>
+                <p className={`text-xs ${colors.textTertiary} uppercase tracking-wide transition-colors duration-200`}>No Action</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Filters and Search */}
+        <div className="flex flex-col sm:flex-row gap-3 mb-6">
+          <div className="flex gap-2 flex-wrap">
+            <button
+              onClick={() => setStatusFilter('all')}
+              className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                statusFilter === 'all'
+                  ? 'bg-amber-500 text-zinc-900'
+                  : `${colors.buttonBg} ${colors.textSecondary} hover:${colors.text}`
+              }`}
+            >
+              All
+            </button>
+            <button
+              onClick={() => setStatusFilter('completed')}
+              className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                statusFilter === 'completed'
+                  ? 'bg-green-500 text-zinc-900'
+                  : `${colors.buttonBg} ${colors.textSecondary} hover:${colors.text}`
+              }`}
+            >
+              Booked
+            </button>
+            <button
+              onClick={() => setStatusFilter('in_progress')}
+              className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                statusFilter === 'in_progress'
+                  ? 'bg-yellow-500 text-zinc-900'
+                  : `${colors.buttonBg} ${colors.textSecondary} hover:${colors.text}`
+              }`}
+            >
+              Callback
+            </button>
+            <button
+              onClick={() => setStatusFilter('escalated')}
+              className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                statusFilter === 'escalated'
+                  ? `${theme === 'dark' ? 'bg-zinc-700 text-zinc-200' : 'bg-gray-300 text-gray-900'}`
+                  : `${colors.buttonBg} ${colors.textSecondary} hover:${colors.text}`
+              }`}
+            >
+              No Action
+            </button>
+          </div>
+          
+          <div className="flex-1">
+            <div className="relative">
+              <svg className={`absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 ${colors.textTertiary} transition-colors duration-200`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+              </svg>
+              <input
+                type="text"
+                placeholder="Search calls..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className={`w-full ${colors.inputBg} border ${colors.border} rounded-lg pl-10 pr-4 py-2 text-sm ${colors.text} placeholder-${colors.textTertiary} focus:outline-none focus:border-amber-500/50 transition-colors duration-200`}
+              />
+            </div>
+          </div>
+        </div>
+
+        {/* Two Column Layout */}
+        <div className="grid lg:grid-cols-2 gap-6">
+          {/* Call List */}
+          <div className="space-y-3">
+            {loading ? (
+              <div className="space-y-3">
+                {[1, 2, 3].map((i) => (
+                  <div key={i} className={`${colors.cardBg} border ${colors.border} rounded-xl p-4 animate-pulse transition-colors duration-200`}>
+                    <div className={`h-5 ${theme === 'dark' ? 'bg-zinc-800' : 'bg-gray-200'} rounded w-32 mb-2 transition-colors duration-200`}></div>
+                    <div className={`h-4 ${theme === 'dark' ? 'bg-zinc-800' : 'bg-gray-200'} rounded w-24 transition-colors duration-200`}></div>
+                  </div>
+                ))}
+              </div>
+            ) : filteredConversations.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-16">
+                <div className={`p-4 ${colors.cardBg} rounded-full mb-4 transition-colors duration-200`}>
+                  <svg className={`w-12 h-12 ${theme === 'dark' ? 'text-zinc-700' : 'text-gray-400'} transition-colors duration-200`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
+                  </svg>
+                </div>
+                <p className={`${colors.textTertiary} text-sm transition-colors duration-200`}>No calls found</p>
+              </div>
+            ) : (
+              filteredConversations.map((call) => {
                 const status = call.status || 'completed'
+                const isSelected = selectedCall?.id === call.id
                 
                 return (
-                  <div 
+                  <button
                     key={call.id}
-                    onClick={() => toggleExpand(call.id)}
-                    className="bg-zinc-800 border border-zinc-700 rounded-lg p-4 sm:p-6 hover:border-amber-500/50 hover:shadow-lg hover:shadow-amber-500/10 transition-all cursor-pointer animate-slide-in"
-                    style={{ animationDelay: `${index * 50}ms` }}
+                    onClick={() => selectCall(call)}
+                    className={`w-full text-left ${colors.cardBg} border rounded-xl p-4 transition-all ${
+                      isSelected 
+                        ? 'border-amber-500 bg-amber-500/5' 
+                        : `${colors.border} ${colors.cardHover}`
+                    }`}
                   >
-                    <div className="flex flex-col sm:flex-row items-start justify-between gap-3 mb-3">
-                      <div className="flex-1">
-                        <p className="text-lg font-semibold text-zinc-100">{call.customer_phone}</p>
-                        <p className="text-sm text-zinc-400">
-                          {new Date(call.created_at).toLocaleString('en-GB', {
-                            day: '2-digit',
-                            month: 'short',
-                            year: 'numeric',
-                            hour: '2-digit',
-                            minute: '2-digit'
-                          })}
-                        </p>
+                    <div className="flex items-start justify-between mb-2">
+                      <div className="flex items-center gap-2">
+                        <svg className={`w-4 h-4 ${colors.textTertiary} transition-colors duration-200`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
+                        </svg>
+                        <span className={`text-sm font-medium ${theme === 'dark' ? 'text-zinc-200' : 'text-gray-900'} transition-colors duration-200`}>{call.customer_phone}</span>
                       </div>
-                      <div className="flex items-center gap-3 sm:text-right">
-                        <span className={`inline-block px-3 py-1 rounded-full text-sm font-medium whitespace-nowrap ${
-                          status === 'completed' ? 'bg-green-500/20 text-green-500' :
-                          status === 'in_progress' ? 'bg-yellow-500/20 text-yellow-500' :
-                          status === 'escalated' ? 'bg-red-500/20 text-red-500' :
-                          'bg-zinc-500/20 text-zinc-500'
-                        }`}>
-                          {status === 'completed' ? 'Completed' :
-                           status === 'in_progress' ? 'In Progress' :
-                           status === 'escalated' ? 'Escalated' :
-                           'Unknown'}
-                        </span>
-                        <p className="text-sm text-zinc-400 whitespace-nowrap">
-                          {Math.floor(call.duration_seconds / 60)}m {call.duration_seconds % 60}s
-                        </p>
-                      </div>
+                      <span className={`text-xs px-2 py-1 rounded-full font-medium uppercase tracking-wide ${
+                        status === 'completed' ? 'bg-green-500/20 text-green-400' :
+                        status === 'in_progress' ? 'bg-yellow-500/20 text-yellow-400' :
+                        theme === 'dark' ? 'bg-zinc-700/20 text-zinc-400' : 'bg-gray-200 text-gray-600'
+                      }`}>
+                        {status === 'completed' ? 'Booked' :
+                         status === 'in_progress' ? 'Callback' :
+                         'No Action'}
+                      </span>
                     </div>
                     
-                    <p className="text-zinc-400 text-sm mb-3">{call.transcript}</p>
+                    <p className={`text-xs ${colors.textTertiary} mb-2 transition-colors duration-200`}>
+                      {new Date(call.created_at).toLocaleString('en-GB', {
+                        day: '2-digit',
+                        month: 'short',
+                        hour: '2-digit',
+                        minute: '2-digit'
+                      })}
+                    </p>
                     
-                    {isExpanded && (
-                      <div className="mt-4 pt-4 border-t border-zinc-700 animate-fade-in">
-                        <p className="text-sm text-zinc-400 mb-4 font-semibold">Full Conversation:</p>
-                        
-                        {loadingMessages ? (
-                          <div className="space-y-3">
-                            {[1, 2, 3].map((i) => (
-                              <div key={i} className="p-4 rounded-lg bg-zinc-700 animate-pulse">
-                                <div className="h-4 bg-zinc-600 rounded w-3/4"></div>
-                              </div>
-                            ))}
-                          </div>
-                        ) : call.messages && call.messages.length > 0 ? (
-                          <div className="space-y-3">
-                            {call.messages.map((message, msgIndex) => (
-                              <div 
-                                key={message.id}
-                                className={`p-4 rounded-lg animate-slide-in ${
-                                  message.speaker === 'ai' 
-                                    ? 'bg-amber-500/10 border border-amber-500/20' 
-                                    : 'bg-blue-500/10 border border-blue-500/20'
-                                }`}
-                                style={{ animationDelay: `${msgIndex * 100}ms` }}
-                              >
-                                <p className={`text-xs font-semibold mb-2 ${
-                                  message.speaker === 'ai' ? 'text-amber-500' : 'text-blue-400'
-                                }`}>
-                                  {message.speaker === 'ai' ? '🤖 LinkWright AI' : '👤 Customer'}
-                                </p>
-                                <p className="text-zinc-100">{message.message_text}</p>
-                              </div>
-                            ))}
-                          </div>
-                        ) : (
-                          <p className="text-zinc-500 text-center py-4">No messages found for this conversation</p>
-                        )}
-                      </div>
-                    )}
+                    <p className={`text-sm ${colors.textSecondary} line-clamp-2 mb-2 transition-colors duration-200`}>{call.transcript}</p>
                     
-                    <div className="mt-3 text-xs text-zinc-500 text-center">
-                      {isExpanded ? '▲ Click to collapse' : '▼ Click to view full conversation'}
-                    </div>
-                  </div>
+                    <p className={`text-xs ${colors.textTertiary} transition-colors duration-200`}>
+                      {Math.floor(call.duration_seconds / 60)}:{(call.duration_seconds % 60).toString().padStart(2, '0')}
+                    </p>
+                  </button>
                 )
-              })}
-            </div>
-          )}
+              })
+            )}
+          </div>
+
+          {/* Transcript Panel */}
+          <div className={`${theme === 'dark' ? 'bg-zinc-900/30' : 'bg-white'} border ${colors.border} rounded-xl p-6 lg:sticky lg:top-24 lg:h-[calc(100vh-12rem)] lg:overflow-y-auto transition-colors duration-200`}>
+            {!selectedCall ? (
+              <div className="flex flex-col items-center justify-center h-full text-center py-16">
+                <div className="p-4 bg-amber-500/10 rounded-full mb-4">
+                  <svg className="w-12 h-12 text-amber-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                  </svg>
+                </div>
+                <p className={`${colors.textSecondary} transition-colors duration-200`}>Select a call to view the transcript</p>
+              </div>
+            ) : (
+              <div>
+                <div className={`mb-6 pb-4 border-b ${colors.border} transition-colors duration-200`}>
+                  <h3 className={`text-lg font-semibold ${colors.text} mb-1 transition-colors duration-200`}>{selectedCall.customer_phone}</h3>
+                  <p className={`text-sm ${colors.textTertiary} transition-colors duration-200`}>
+                    {new Date(selectedCall.created_at).toLocaleString('en-GB', {
+                      day: '2-digit',
+                      month: 'short',
+                      year: 'numeric',
+                      hour: '2-digit',
+                      minute: '2-digit'
+                    })}
+                  </p>
+                </div>
+
+                {loadingMessages ? (
+                  <div className="space-y-3">
+                    {[1, 2, 3].map((i) => (
+                      <div key={i} className={`p-3 rounded-lg ${theme === 'dark' ? 'bg-zinc-800/50' : 'bg-gray-100'} animate-pulse transition-colors duration-200`}>
+                        <div className={`h-4 ${theme === 'dark' ? 'bg-zinc-700' : 'bg-gray-200'} rounded w-3/4 transition-colors duration-200`}></div>
+                      </div>
+                    ))}
+                  </div>
+                ) : selectedCall.messages && selectedCall.messages.length > 0 ? (
+                  <div className="space-y-3">
+                    {selectedCall.messages.map((message) => (
+                      <div 
+                        key={message.id}
+                        className={`p-3 rounded-lg ${
+                          message.speaker === 'ai' 
+                            ? 'bg-amber-500/10 border border-amber-500/20' 
+                            : theme === 'dark' ? 'bg-zinc-800/50' : 'bg-gray-100'
+                        } transition-colors duration-200`}
+                      >
+                        <p className={`text-xs font-medium mb-1 ${
+                          message.speaker === 'ai' ? 'text-amber-400' : colors.textSecondary
+                        } transition-colors duration-200`}>
+                          {message.speaker === 'ai' ? 'AI Assistant' : 'Customer'}
+                        </p>
+                        <p className={`text-sm ${theme === 'dark' ? 'text-zinc-200' : 'text-gray-800'} transition-colors duration-200`}>{message.message_text}</p>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className={`${colors.textTertiary} text-center py-8 transition-colors duration-200`}>No transcript available</p>
+                )}
+              </div>
+            )}
+          </div>
         </div>
       </main>
     </div>
